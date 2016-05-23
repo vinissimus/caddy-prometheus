@@ -38,5 +38,5 @@ func host(r *http.Request) (string, error) {
 		}
 		return "", err
 	}
-	return host, nil
+	return strings.ToLower(host), nil
 }
