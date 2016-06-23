@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/caddy/middleware"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 )
 
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
@@ -19,7 +19,7 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	start := time.Now()
 
 	// Record response to get status code and size of the reply.
-	rw := middleware.NewResponseRecorder(w)
+	rw := httpserver.NewResponseRecorder(w)
 	status, err := next.ServeHTTP(rw, r)
 
 	requestCount.WithLabelValues(host).Inc()

@@ -5,10 +5,17 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/mholt/caddy/caddy/setup"
-	"github.com/mholt/caddy/middleware"
+	"github.com/mholt/caddy"
+	"github.com/mholt/caddy/caddyhttp/httpserver"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func init() {
+	caddy.RegisterPlugin("prometheus", caddy.Plugin{
+		ServerType: "http",
+		Action:     setup,
+	})
+}
 
 const (
 	path = "/metrics"
@@ -19,7 +26,7 @@ var once sync.Once
 
 // Metrics holds the prometheus configuration. The metrics' path is fixed to be /metrics
 type Metrics struct {
-	next middleware.Handler
+	next httpserver.Handler
 	addr string // where to we listen
 	// subsystem?
 	once sync.Once
@@ -42,29 +49,30 @@ func (m *Metrics) start() error {
 	return nil
 }
 
-func Setup(c *setup.Controller) (middleware.Middleware, error) {
+func setup(c *caddy.Controller) error {
 	metrics, err := parse(c)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if metrics.addr == "" {
 		metrics.addr = addr
 	}
 	once.Do(func() {
-		c.Startup = append(c.Startup, metrics.start)
+		c.OnStartup(metrics.start)
 	})
 
-	return func(next middleware.Handler) middleware.Handler {
+	httpserver.GetConfig(c).AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
 		metrics.next = next
 		return metrics
-	}, nil
+	})
+	return nil
 }
 
 // prometheus {
 //	address localhost:9180
 // }
 // Or just: prometheus localhost:9180
-func parse(c *setup.Controller) (*Metrics, error) {
+func parse(c *caddy.Controller) (*Metrics, error) {
 	var (
 		metrics *Metrics
 		err     error
