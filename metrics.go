@@ -20,7 +20,7 @@ func define(subsystem string) {
 		Subsystem: subsystem,
 		Name:      "request_count_total",
 		Help:      "Counter of HTTP(S) requests made.",
-	}, []string{"host"})
+	}, []string{"host", "family"})
 
 	requestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,

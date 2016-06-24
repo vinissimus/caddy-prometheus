@@ -22,7 +22,13 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	rw := httpserver.NewResponseRecorder(w)
 	status, err := next.ServeHTTP(rw, r)
 
-	requestCount.WithLabelValues(host).Inc()
+	fam := "1"
+	ip := net.ParseIP(r.RemoteAddr)
+	if ip != nil && ip.To4() == nil {
+		fam = "2"
+	}
+
+	requestCount.WithLabelValues(host, fam).Inc()
 	requestDuration.WithLabelValues(host).Observe(float64(time.Since(start)) / float64(time.Second))
 	responseSize.WithLabelValues(host).Observe(float64(rw.Size()))
 	responseStatus.WithLabelValues(host, strconv.Itoa(rw.Status())).Inc()

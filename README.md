@@ -29,3 +29,5 @@ The following metrics are exported:
 
 Each counter has a label `host` which is the hostname used for the request/response.
 The `status_count` metrics has an extra label `status` which holds the status code.
+The `request_count_total` also has the protocol family in the `family` label, this is
+either 1 (IP version 4) or 2 (IP version 6).
