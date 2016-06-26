@@ -27,6 +27,7 @@ func define(subsystem string) {
 		Subsystem: subsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Histogram of the time (in seconds) each request took.",
+		Buckets:   append(prometheus.DefBuckets, 15, 20, 30, 60, 120, 180, 240),
 	}, []string{"host"})
 
 	responseSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
