@@ -20,15 +20,15 @@ func define(subsystem string) {
 		Subsystem: subsystem,
 		Name:      "request_count_total",
 		Help:      "Counter of HTTP(S) requests made.",
-	}, []string{"host", "family"})
+	}, []string{"host", "family", "proto"})
 
 	requestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Histogram of the time (in seconds) each request took.",
-		Buckets:   append(prometheus.DefBuckets, 15, 20, 30, 60, 120, 180, 240),
-	}, []string{"host"})
+		Buckets:   append(prometheus.DefBuckets, 15, 20, 30, 60, 120, 180, 240, 480, 960),
+	}, []string{"host", "family", "proto"})
 
 	responseSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,

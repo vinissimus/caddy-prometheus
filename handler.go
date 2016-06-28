@@ -27,9 +27,11 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	if ip != nil && ip.To4() == nil {
 		fam = "2"
 	}
+	proto := strconv.Itoa(r.ProtoMajor)
+	proto = proto + "." + strconv.Itoa(r.ProtoMinor)
 
-	requestCount.WithLabelValues(host, fam).Inc()
-	requestDuration.WithLabelValues(host).Observe(float64(time.Since(start)) / float64(time.Second))
+	requestCount.WithLabelValues(host, fam, proto).Inc()
+	requestDuration.WithLabelValues(host, fam, proto).Observe(float64(time.Since(start)) / float64(time.Second))
 	responseSize.WithLabelValues(host).Observe(float64(rw.Size()))
 	responseStatus.WithLabelValues(host, strconv.Itoa(rw.Status())).Inc()
 
