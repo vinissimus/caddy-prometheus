@@ -42,7 +42,7 @@ func host(r *http.Request) (string, error) {
 	host, _, err := net.SplitHostPort(r.Host)
 	if err != nil {
 		if !strings.Contains(r.Host, ":") {
-			return r.Host, nil
+			return strings.ToLower(r.Host), nil
 		}
 		return "", err
 	}
