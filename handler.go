@@ -21,6 +21,10 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	// Record response to get status code and size of the reply.
 	rw := httpserver.NewResponseRecorder(w)
 	status, err := next.ServeHTTP(rw, r)
+	// Some middlewares set the status to 0, but return an non nill error: map these to status 500
+	if err != nil && status == 0 {
+		status = 500
+	}
 
 	fam := "1"
 	ip := net.ParseIP(r.RemoteAddr)
