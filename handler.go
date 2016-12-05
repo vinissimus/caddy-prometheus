@@ -21,7 +21,7 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	// Record response to get status code and size of the reply.
 	rw := httpserver.NewResponseRecorder(w)
 	status, err := next.ServeHTTP(rw, r)
-	// Some middlewares set the status to 0, but return an non nill error: map these to status 500
+	// Some middlewares set the status to 0, but return an non nil error: map these to status 500
 	if err != nil && status == 0 {
 		status = 500
 	}
@@ -37,7 +37,7 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	requestCount.WithLabelValues(host, fam, proto).Inc()
 	requestDuration.WithLabelValues(host, fam, proto).Observe(float64(time.Since(start)) / float64(time.Second))
 	responseSize.WithLabelValues(host).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(host, strconv.Itoa(rw.Status())).Inc()
+	responseStatus.WithLabelValues(host, strconv.Itoa(status)).Inc()
 
 	return status, err
 }
