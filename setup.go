@@ -44,8 +44,10 @@ func (m *Metrics) start() error {
 
 		http.Handle(path, promhttp.Handler())
 		go func() {
-			// Caddy's registration system barf on not checking this error.
-			_ = fmt.Errorf("%s", http.ListenAndServe(m.addr, nil))
+			err := http.ListenAndServe(m.addr, nil)
+			if err != nil {
+				fmt.Printf("Error starting handler: %s", err)
+			}
 		}()
 	})
 	return nil
