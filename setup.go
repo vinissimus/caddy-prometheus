@@ -44,7 +44,8 @@ func (m *Metrics) start() error {
 
 		http.Handle(path, promhttp.Handler())
 		go func() {
-			fmt.Errorf("%s", http.ListenAndServe(m.addr, nil))
+			// Caddy's registration system barf on not checking this error.
+			_ = fmt.Errorf("%s", http.ListenAndServe(m.addr, nil))
 		}()
 	})
 	return nil
