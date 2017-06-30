@@ -24,7 +24,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 	type fields struct {
 		next httpserver.Handler
 		addr string
-		once sync.Once
 	}
 	type args struct {
 		w http.ResponseWriter
@@ -42,7 +41,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 			fields: fields{
 				next: testHandler{},
 				addr: "success",
-				once: sync.Once{},
 			},
 			args: args{
 				w: httptest.NewRecorder(),
@@ -56,7 +54,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 			fields: fields{
 				next: testHandler{},
 				addr: "error",
-				once: sync.Once{},
 			},
 			args: args{
 				w: httptest.NewRecorder(),
@@ -70,7 +67,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 			fields: fields{
 				next: testHandler{},
 				addr: "proxy",
-				once: sync.Once{},
 			},
 			args: args{
 				w: httptest.NewRecorder(),
@@ -84,7 +80,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 			fields: fields{
 				next: testHandler{},
 				addr: "proxyerror",
-				once: sync.Once{},
 			},
 			args: args{
 				w: httptest.NewRecorder(),
@@ -98,14 +93,12 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 	m := &Metrics{
 		next: tests[0].fields.next,
 		addr: tests[0].fields.addr,
-		once: tests[0].fields.once,
+		once: sync.Once{},
 	}
 	m.start()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m.next = tt.fields.next
-			m.addr = tt.fields.addr
 			got, err := m.ServeHTTP(tt.args.w, tt.args.r)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Metrics.ServeHTTP() error = %v, wantErr %v", err, tt.wantErr)
