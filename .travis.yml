@@ -1,7 +1,11 @@
 language: go
 
 go:
-    - 1.8
+    - 1.9
+
+git:
+    depth: 3
+
 
 os:
     - linux
@@ -10,6 +14,3 @@ os:
 install:
     - go get -d -t -v ./...
     - go build -v ./...
-
-#script:
-#    - go test -v ./...
