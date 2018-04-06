@@ -27,7 +27,14 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 
 	// Record response to get status code and size of the reply.
 	rw := httpserver.NewResponseRecorder(w)
-	status, err := next.ServeHTTP(rw, r)
+	// Get time to first write.
+	tw := &timedResponseWriter{ResponseWriter: rw}
+
+	status, err := next.ServeHTTP(tw, r)
+
+	// If nothing was explicitly written, consider the request written to
+	// now that it has completed.
+	tw.didWrite()
 
 	// Transparently capture the status code so as to not side effect other plugins
 	stat := status
@@ -45,13 +52,17 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	if isIPv6(r.RemoteAddr) {
 		fam = "2"
 	}
+
 	proto := strconv.Itoa(r.ProtoMajor)
 	proto = proto + "." + strconv.Itoa(r.ProtoMinor)
 
+	statusStr := strconv.Itoa(stat)
+
 	requestCount.WithLabelValues(hostname, fam, proto).Inc()
-	requestDuration.WithLabelValues(hostname, fam, proto).Observe(float64(time.Since(start)) / float64(time.Second))
-	responseSize.WithLabelValues(hostname).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(hostname, strconv.Itoa(stat)).Inc()
+	requestDuration.WithLabelValues(hostname, fam, proto).Observe(time.Since(start).Seconds())
+	responseSize.WithLabelValues(hostname, fam, proto, statusStr).Observe(float64(rw.Size()))
+	responseStatus.WithLabelValues(hostname, fam, proto, statusStr).Inc()
+	responseLatency.WithLabelValues(hostname, fam, proto, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
 
 	return status, err
 }
@@ -74,4 +85,29 @@ func isIPv6(addr string) bool {
 	}
 	ip := net.ParseIP(addr)
 	return ip != nil && ip.To4() == nil
+}
+
+// A timedResponseWriter tracks the time when the first response write
+// happened.
+type timedResponseWriter struct {
+	firstWrite time.Time
+	http.ResponseWriter
+}
+
+func (w *timedResponseWriter) didWrite() {
+	if w.firstWrite.IsZero() {
+		w.firstWrite = time.Now()
+	}
+}
+
+func (w *timedResponseWriter) Write(data []byte) (int, error) {
+	w.didWrite()
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *timedResponseWriter) WriteHeader(statuscode int) {
+	// We consider this a write as it's valid to respond to a request by
+	// just setting a status code and returning.
+	w.didWrite()
+	w.ResponseWriter.WriteHeader(statuscode)
 }
