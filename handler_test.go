@@ -3,6 +3,7 @@ package metrics
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"sync"
 	"testing"
 
@@ -93,11 +94,13 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 	}
 
 	m := &Metrics{
-		next:    tests[0].fields.next,
-		addr:    tests[0].fields.addr,
-		once:    sync.Once{},
-		handler: promhttp.Handler(),
-		path:    "/metrics",
+		next:           tests[0].fields.next,
+		addr:           tests[0].fields.addr,
+		once:           sync.Once{},
+		handler:        promhttp.Handler(),
+		path:           "/metrics",
+		regex:          defaultRegex,
+		compiled_regex: regexp.MustCompile(defaultRegex),
 	}
 	m.start()
 
@@ -112,28 +115,6 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 				t.Errorf("Metrics.ServeHTTP() = %v, want %v", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestIsIPv6(t *testing.T) {
-	cases := []struct {
-		addr   string
-		isIPv6 bool
-	}{
-		{"", false},
-		{"192.0.2.42", false},
-		{"192.0.2.42:5678", false},
-		{"2001:db8::42", true},
-		{"[2001:db8::42]:5678", true},
-		{"banana", false},
-		{"banana::phone", false},
-	}
-
-	for _, tc := range cases {
-		res := isIPv6(tc.addr)
-		if res != tc.isIPv6 {
-			t.Errorf("isIPv6(%q) => %v, want %v", tc.addr, res, tc.isIPv6)
-		}
 	}
 }
 

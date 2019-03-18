@@ -1,10 +1,8 @@
 package metrics
 
 import (
-	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -13,16 +11,8 @@ import (
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	next := m.next
 
-	hostname := m.hostname
+	vhost := getVhost(m, r.URL.String())
 
-	if hostname == "" {
-		originalHostname, err := host(r)
-		if err != nil {
-			hostname = "-"
-		} else {
-			hostname = originalHostname
-		}
-	}
 	start := time.Now()
 
 	// Record response to get status code and size of the reply.
@@ -48,43 +38,18 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 		stat = rw.Status()
 	}
 
-	fam := "1"
-	if isIPv6(r.RemoteAddr) {
-		fam = "2"
-	}
-
 	proto := strconv.Itoa(r.ProtoMajor)
 	proto = proto + "." + strconv.Itoa(r.ProtoMinor)
 
 	statusStr := strconv.Itoa(stat)
 
-	requestCount.WithLabelValues(hostname, fam, proto).Inc()
-	requestDuration.WithLabelValues(hostname, fam, proto).Observe(time.Since(start).Seconds())
-	responseSize.WithLabelValues(hostname, fam, proto, statusStr).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(hostname, fam, proto, statusStr).Inc()
-	responseLatency.WithLabelValues(hostname, fam, proto, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
+	requestCount.WithLabelValues(vhost, proto).Inc()
+	requestDuration.WithLabelValues(vhost, proto).Observe(time.Since(start).Seconds())
+	responseSize.WithLabelValues(vhost, proto, statusStr).Observe(float64(rw.Size()))
+	responseStatus.WithLabelValues(vhost, proto, statusStr).Inc()
+	responseLatency.WithLabelValues(vhost, proto, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
 
 	return status, err
-}
-
-func host(r *http.Request) (string, error) {
-	host, _, err := net.SplitHostPort(r.Host)
-	if err != nil {
-		if !strings.Contains(r.Host, ":") {
-			return strings.ToLower(r.Host), nil
-		}
-		return "", err
-	}
-	return strings.ToLower(host), nil
-}
-
-func isIPv6(addr string) bool {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
-		// Strip away the port.
-		addr = host
-	}
-	ip := net.ParseIP(addr)
-	return ip != nil && ip.To4() == nil
 }
 
 // A timedResponseWriter tracks the time when the first response write
@@ -110,4 +75,15 @@ func (w *timedResponseWriter) WriteHeader(statuscode int) {
 	// just setting a status code and returning.
 	w.didWrite()
 	w.ResponseWriter.WriteHeader(statuscode)
+}
+
+func getVhost(m *Metrics, path string) string {
+	re := m.compiled_regex
+	submatch := re.FindSubmatch([]byte(path))
+
+	if len(submatch) == 2 {
+		return string(submatch[1])
+	}
+
+	return "/"
 }

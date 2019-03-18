@@ -12,8 +12,8 @@ func TestParse(t *testing.T) {
 		shouldErr bool
 		expected  *Metrics
 	}{
-		{`prometheus`, false, &Metrics{addr: defaultAddr, path: defaultPath}},
-		{`prometheus foo:123`, false, &Metrics{addr: "foo:123", path: defaultPath}},
+		{`prometheus`, false, &Metrics{addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
+		{`prometheus foo:123`, false, &Metrics{addr: "foo:123", path: defaultPath, regex: defaultRegex}},
 		{`prometheus foo bar`, true, nil},
 		{`prometheus {
 			a b
@@ -39,14 +39,17 @@ func TestParse(t *testing.T) {
 		}`, true, nil},
 		{`prometheus {
 			use_caddy_addr
-		}`, false, &Metrics{useCaddyAddr: true, addr: defaultAddr, path: defaultPath}},
+		}`, false, &Metrics{useCaddyAddr: true, addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
 		{`prometheus {
 			path /foo
-		}`, false, &Metrics{addr: defaultAddr, path: "/foo"}},
+		}`, false, &Metrics{addr: defaultAddr, path: "/foo", regex: defaultRegex}},
 		{`prometheus {
 			use_caddy_addr
 			hostname example.com
-		}`, false, &Metrics{useCaddyAddr: true, hostname: "example.com", addr: defaultAddr, path: defaultPath}},
+		}`, false, &Metrics{useCaddyAddr: true, hostname: "example.com", addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
+		{`prometheus {
+			regex "^https?://([^\/]+).*$"
+		}`, false, &Metrics{addr: defaultAddr, path: defaultPath, regex: `^https?://([^\/]+).*$`}},
 	}
 	for i, test := range tests {
 		c := caddy.NewTestController("http", test.input)

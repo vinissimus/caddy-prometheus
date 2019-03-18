@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"sync"
 
 	"github.com/mholt/caddy"
@@ -20,8 +21,9 @@ func init() {
 }
 
 const (
-	defaultPath = "/metrics"
-	defaultAddr = "localhost:9180"
+	defaultPath  = "/metrics"
+	defaultAddr  = "localhost:9180"
+	defaultRegex = `^https?:\/\/([^/]+)\/.*$`
 )
 
 var once sync.Once
@@ -33,17 +35,20 @@ type Metrics struct {
 	useCaddyAddr bool
 	hostname     string
 	path         string
+	regex        string
 	// subsystem?
 	once sync.Once
 
-	handler http.Handler
+	compiled_regex *regexp.Regexp
+	handler        http.Handler
 }
 
 // NewMetrics -
 func NewMetrics() *Metrics {
 	return &Metrics{
-		path: defaultPath,
-		addr: defaultAddr,
+		path:  defaultPath,
+		addr:  defaultAddr,
+		regex: defaultRegex,
 	}
 }
 
@@ -80,6 +85,8 @@ func setup(c *caddy.Controller) error {
 		ErrorHandling: promhttp.HTTPErrorOnError,
 		ErrorLog:      log.New(os.Stderr, "", log.LstdFlags),
 	})
+
+	metrics.compiled_regex = regexp.MustCompile(metrics.regex)
 
 	once.Do(func() {
 		c.OnStartup(metrics.start)
@@ -153,6 +160,12 @@ func parse(c *caddy.Controller) (*Metrics, error) {
 					return nil, c.ArgErr()
 				}
 				metrics.hostname = args[0]
+			case "regex":
+				args = c.RemainingArgs()
+				if len(args) != 1 {
+					return nil, c.ArgErr()
+				}
+				metrics.regex = args[0]
 			case "use_caddy_addr":
 				if addrSet {
 					return nil, c.Err("prometheus: address and use_caddy_addr options may not be used together")
