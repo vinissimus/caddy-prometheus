@@ -94,13 +94,13 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 	}
 
 	m := &Metrics{
-		next:           tests[0].fields.next,
-		addr:           tests[0].fields.addr,
-		once:           sync.Once{},
-		handler:        promhttp.Handler(),
-		path:           "/metrics",
-		regex:          defaultRegex,
-		compiled_regex: regexp.MustCompile(defaultRegex),
+		next:          tests[0].fields.next,
+		addr:          tests[0].fields.addr,
+		once:          sync.Once{},
+		handler:       promhttp.Handler(),
+		path:          "/metrics",
+		regex:         `^/([^/]*).*$`,
+		compiledRegex: regexp.MustCompile(`^/([^/]*).*$`),
 	}
 	m.start()
 

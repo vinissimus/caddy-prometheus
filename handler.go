@@ -11,8 +11,6 @@ import (
 func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
 	next := m.next
 
-	vhost := getVhost(m, r.URL.String())
-
 	start := time.Now()
 
 	// Record response to get status code and size of the reply.
@@ -38,16 +36,19 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 		stat = rw.Status()
 	}
 
-	proto := strconv.Itoa(r.ProtoMajor)
-	proto = proto + "." + strconv.Itoa(r.ProtoMinor)
+	path := "/-"
+	if stat != 404 {
+		path = getPath(m, r.URL.String())
+	}
 
-	statusStr := strconv.Itoa(stat)
+	// We only want 2xx, 3xx, 4xx, 5xx
+	statusStr := string(strconv.Itoa(stat)[0]) + "xx"
 
-	requestCount.WithLabelValues(vhost, proto).Inc()
-	requestDuration.WithLabelValues(vhost, proto).Observe(time.Since(start).Seconds())
-	responseSize.WithLabelValues(vhost, proto, statusStr).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(vhost, proto, statusStr).Inc()
-	responseLatency.WithLabelValues(vhost, proto, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
+	requestCount.WithLabelValues(path).Inc()
+	requestDuration.WithLabelValues(path).Observe(time.Since(start).Seconds())
+	responseSize.WithLabelValues(path, statusStr).Observe(float64(rw.Size()))
+	responseStatus.WithLabelValues(path, statusStr).Inc()
+	responseLatency.WithLabelValues(path, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
 
 	return status, err
 }
@@ -77,13 +78,13 @@ func (w *timedResponseWriter) WriteHeader(statuscode int) {
 	w.ResponseWriter.WriteHeader(statuscode)
 }
 
-func getVhost(m *Metrics, path string) string {
-	re := m.compiled_regex
-	submatch := re.FindSubmatch([]byte(path))
+func getPath(m *Metrics, url string) string {
+	re := m.compiledRegex
+	submatch := re.FindSubmatch([]byte(url))
 
 	if len(submatch) == 2 {
 		return string(submatch[1])
 	}
 
-	return "/"
+	return "/-"
 }

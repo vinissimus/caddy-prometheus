@@ -23,7 +23,7 @@ func init() {
 const (
 	defaultPath  = "/metrics"
 	defaultAddr  = "localhost:9180"
-	defaultRegex = `^https?:\/\/([^/]+)\/.*$`
+	defaultRegex = `^/([^/]*).*$`
 )
 
 var once sync.Once
@@ -39,8 +39,8 @@ type Metrics struct {
 	// subsystem?
 	once sync.Once
 
-	compiled_regex *regexp.Regexp
-	handler        http.Handler
+	compiledRegex *regexp.Regexp
+	handler       http.Handler
 }
 
 // NewMetrics -
@@ -86,7 +86,7 @@ func setup(c *caddy.Controller) error {
 		ErrorLog:      log.New(os.Stderr, "", log.LstdFlags),
 	})
 
-	metrics.compiled_regex = regexp.MustCompile(metrics.regex)
+	metrics.compiledRegex = regexp.MustCompile(metrics.regex)
 
 	once.Do(func() {
 		c.OnStartup(metrics.start)
