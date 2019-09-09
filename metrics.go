@@ -21,7 +21,7 @@ func define(subsystem string) {
 		Subsystem: subsystem,
 		Name:      "request_count_total",
 		Help:      "Counter of HTTP(S) requests made.",
-	}, []string{"path"})
+	}, []string{"host", "path"})
 
 	requestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -29,7 +29,7 @@ func define(subsystem string) {
 		Name:      "request_duration_seconds",
 		Help:      "Histogram of the time (in seconds) each request took.",
 		Buckets:   append(prometheus.DefBuckets, 30, 60),
-	}, []string{"path"})
+	}, []string{"host", "path"})
 
 	responseSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -37,14 +37,14 @@ func define(subsystem string) {
 		Name:      "response_size_bytes",
 		Help:      "Size of the returns response in bytes.",
 		Buckets:   []float64{0, 1e3, 1e4, 1e5, 1e6, 5e6},
-	}, []string{"path", "status"})
+	}, []string{"host", "path", "status"})
 
 	responseStatus = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: namespace,
 		Subsystem: subsystem,
 		Name:      "response_status_count_total",
 		Help:      "Counter of response status codes.",
-	}, []string{"path", "status"})
+	}, []string{"host", "path", "status"})
 
 	responseLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
@@ -52,5 +52,5 @@ func define(subsystem string) {
 		Name:      "response_latency_seconds",
 		Help:      "Histogram of the time (in seconds) until the first write for each request.",
 		Buckets:   append(prometheus.DefBuckets, 30, 60),
-	}, []string{"path", "status"})
+	}, []string{"host", "path", "status"})
 }
