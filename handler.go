@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,7 +46,8 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	// We only want 2xx, 3xx, 4xx, 5xx
 	statusStr := string(strconv.Itoa(stat)[0]) + "xx"
 
-	host := strings.ToLower(r.Host)
+	host, _, _ := net.SplitHostPort(r.Host)
+	host = strings.ToLower(host)
 
 	requestCount.WithLabelValues(host, path).Inc()
 	requestDuration.WithLabelValues(host, path).Observe(time.Since(start).Seconds())
