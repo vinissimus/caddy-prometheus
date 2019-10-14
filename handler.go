@@ -3,6 +3,7 @@ package metrics
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mholt/caddy/caddyhttp/httpserver"
@@ -44,11 +45,13 @@ func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error)
 	// We only want 2xx, 3xx, 4xx, 5xx
 	statusStr := string(strconv.Itoa(stat)[0]) + "xx"
 
-	requestCount.WithLabelValues(r.Host, path).Inc()
-	requestDuration.WithLabelValues(r.Host, path).Observe(time.Since(start).Seconds())
-	responseSize.WithLabelValues(r.Host, path, statusStr).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(r.Host, path, statusStr).Inc()
-	responseLatency.WithLabelValues(r.Host, path, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
+	host := strings.ToLower(r.Host)
+
+	requestCount.WithLabelValues(host, path).Inc()
+	requestDuration.WithLabelValues(host, path).Observe(time.Since(start).Seconds())
+	responseSize.WithLabelValues(host, path, statusStr).Observe(float64(rw.Size()))
+	responseStatus.WithLabelValues(host, path, statusStr).Inc()
+	responseLatency.WithLabelValues(host, path, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
 
 	return status, err
 }
