@@ -11,12 +11,13 @@ import (
 )
 
 type observed struct {
-	start  time.Time
-	host   string
-	path   string
-	status string
-	ttfb   float64
-	size   float64
+	start    time.Time
+	host     string
+	path     string
+	status   string
+	ttfb     float64
+	duration float64
+	size     float64
 }
 
 func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
@@ -56,6 +57,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 	// We only want 2xx, 3xx, 4xx, 5xx
 	obs.status = string(sanitizeCode(stat)[0]) + "xx"
 	obs.size = float64(wrec.Size())
+	obs.duration = time.Since(obs.start).Seconds()
 
 	m.observer(obs)
 
@@ -64,7 +66,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 
 func observe(o *observed) {
 	requestCount.WithLabelValues(o.host, o.path).Inc()
-	requestDuration.WithLabelValues(o.host, o.path, o.status).Observe(time.Since(o.start).Seconds())
+	requestDuration.WithLabelValues(o.host, o.path, o.status).Observe(o.duration)
 	responseSize.WithLabelValues(o.host, o.path, o.status).Observe(o.size)
 	responseStatus.WithLabelValues(o.host, o.path, o.status).Inc()
 	responseLatency.WithLabelValues(o.host, o.path, o.status).Observe(o.ttfb)

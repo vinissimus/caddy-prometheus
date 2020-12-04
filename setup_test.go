@@ -1,6 +1,7 @@
 package prommetrics
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/caddyserver/caddy/v2"
@@ -8,27 +9,31 @@ import (
 	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 )
 
+var testInit = &sync.Once{}
+
 func TestParse(t *testing.T) {
 	tests := []struct {
 		input     string
 		shouldErr bool
 		expected  Metrics
 	}{
-		{`prometheus`, false, Metrics{regex: defaultRegex}},
+		{`prometheus`, false, Metrics{regex: defaultRegex, init: &sync.Once{}}},
 		{`prometheus {
 			a b
 		}`, true, Metrics{}},
-		{`prometheus prometheus`, true, Metrics{}},
+		{`prometheus prometheus`, true, Metrics{init: &sync.Once{}}},
 		{`prometheus {
 			regex "^https?://([^\/]+).*$"
-		}`, false, Metrics{regex: `^https?://([^\/]+).*$`}},
+		}`, false, Metrics{regex: `^https?://([^\/]+).*$`, init: &sync.Once{}}},
 	}
+
 	for i, test := range tests {
 		h := httpcaddyfile.Helper{
 			Dispenser: caddyfile.NewTestDispenser(test.input),
 		}
 		actual, err := parseCaddyfile(h)
 		got := actual.(Metrics)
+		got.init = testInit
 		got.Provision(caddy.Context{})
 
 		if test.shouldErr {

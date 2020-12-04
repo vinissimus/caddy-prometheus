@@ -81,6 +81,7 @@ func TestMetrics_ServeHTTP(t *testing.T) {
 	m := &Metrics{
 		regex:    `^/([^/]*).*$`,
 		observer: mockObserver,
+		init:     testInit,
 	}
 
 	// Compiles regex
