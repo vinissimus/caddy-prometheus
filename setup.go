@@ -1,180 +1,101 @@
-package metrics
+package prommetrics
 
 import (
-	"log"
-	"net/http"
-	"os"
 	"regexp"
-	"sync"
 
-	"github.com/mholt/caddy"
-	"github.com/mholt/caddy/caddyhttp/httpserver"
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Init initializes the module
 func init() {
-	caddy.RegisterPlugin("prometheus", caddy.Plugin{
-		ServerType: "http",
-		Action:     setup,
-	})
+	caddy.RegisterModule(Metrics{})
+	httpcaddyfile.RegisterHandlerDirective("prometheus", parseCaddyfile)
 }
 
-const (
-	defaultPath  = "/metrics"
-	defaultAddr  = "localhost:9180"
-	defaultRegex = `^/([^/]*).*$`
-)
-
-var once sync.Once
+const defaultRegex = `^/([^/]*).*$`
 
 // Metrics holds the prometheus configuration.
 type Metrics struct {
-	next         httpserver.Handler
-	addr         string // where to we listen
-	useCaddyAddr bool
-	hostname     string
-	path         string
-	regex        string
+	regex string
+
 	// subsystem?
-	once sync.Once
-
 	compiledRegex *regexp.Regexp
-	handler       http.Handler
+
+	observer func(*observed)
 }
 
-// NewMetrics -
-func NewMetrics() *Metrics {
-	return &Metrics{
-		path:  defaultPath,
-		addr:  defaultAddr,
-		regex: defaultRegex,
+// CaddyModule returns the Caddy module information.
+func (Metrics) CaddyModule() caddy.ModuleInfo {
+	return caddy.ModuleInfo{
+		ID:  "http.handlers.prometheus",
+		New: newModule,
 	}
 }
 
-func (m *Metrics) start() error {
-	m.once.Do(func() {
-		define("")
+func newModule() caddy.Module {
+	define("")
 
-		prometheus.MustRegister(requestCount)
-		prometheus.MustRegister(requestDuration)
-		prometheus.MustRegister(responseLatency)
-		prometheus.MustRegister(responseSize)
-		prometheus.MustRegister(responseStatus)
+	prometheus.MustRegister(requestCount)
+	prometheus.MustRegister(requestDuration)
+	prometheus.MustRegister(responseLatency)
+	prometheus.MustRegister(responseSize)
+	prometheus.MustRegister(responseStatus)
 
-		if !m.useCaddyAddr {
-			http.Handle(m.path, m.handler)
-			go func() {
-				err := http.ListenAndServe(m.addr, nil)
-				if err != nil {
-					log.Printf("[ERROR] Starting handler: %v", err)
-				}
-			}()
-		}
-	})
+	return Metrics{
+		observer: observe,
+	}
+}
+
+// Provision implements caddy.Provisioner.
+func (m *Metrics) Provision(ctx caddy.Context) error {
+	if len(m.regex) == 0 {
+		m.regex = defaultRegex
+	}
+	m.compiledRegex = regexp.MustCompile(m.regex)
 	return nil
 }
 
-func setup(c *caddy.Controller) error {
-	metrics, err := parse(c)
-	if err != nil {
-		return err
-	}
-
-	metrics.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
-		ErrorHandling: promhttp.HTTPErrorOnError,
-		ErrorLog:      log.New(os.Stderr, "", log.LstdFlags),
-	})
-
-	metrics.compiledRegex = regexp.MustCompile(metrics.regex)
-
-	once.Do(func() {
-		c.OnStartup(metrics.start)
-	})
-
-	cfg := httpserver.GetConfig(c)
-	if metrics.useCaddyAddr {
-		cfg.AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
-			return httpserver.HandlerFunc(func(w http.ResponseWriter, r *http.Request) (int, error) {
-				if r.URL.Path == metrics.path {
-					metrics.handler.ServeHTTP(w, r)
-					return 0, nil
-				}
-				return next.ServeHTTP(w, r)
-			})
-		})
-	}
-	cfg.AddMiddleware(func(next httpserver.Handler) httpserver.Handler {
-		metrics.next = next
-		return metrics
-	})
+// Validate implements caddy.Validator.
+func (m Metrics) Validate() error {
 	return nil
 }
 
-// prometheus {
-//	address localhost:9180
-// }
-// Or just: prometheus localhost:9180
-func parse(c *caddy.Controller) (*Metrics, error) {
-	var (
-		metrics *Metrics
-		err     error
-	)
-
-	for c.Next() {
-		if metrics != nil {
-			return nil, c.Err("prometheus: can only have one metrics module per server")
+// UnmarshalCaddyfile expects the following syntax:
+//
+//	prometheus {
+//		regex ^/([^/]*).*$
+//	}
+// Or just:
+//
+//	prometheus
+//
+func (m *Metrics) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
+	for d.Next() {
+		args := d.RemainingArgs()
+		if len(args) > 0 {
+			return d.Errf("prometheus: unexpected args: %v", args)
 		}
-		metrics = NewMetrics()
-		args := c.RemainingArgs()
-
-		switch len(args) {
-		case 0:
-		case 1:
-			metrics.addr = args[0]
-		default:
-			return nil, c.ArgErr()
-		}
-		addrSet := false
-		for c.NextBlock() {
-			switch c.Val() {
-			case "path":
-				args = c.RemainingArgs()
-				if len(args) != 1 {
-					return nil, c.ArgErr()
-				}
-				metrics.path = args[0]
-			case "address":
-				if metrics.useCaddyAddr {
-					return nil, c.Err("prometheus: address and use_caddy_addr options may not be used together")
-				}
-				args = c.RemainingArgs()
-				if len(args) != 1 {
-					return nil, c.ArgErr()
-				}
-				metrics.addr = args[0]
-				addrSet = true
-			case "hostname":
-				args = c.RemainingArgs()
-				if len(args) != 1 {
-					return nil, c.ArgErr()
-				}
-				metrics.hostname = args[0]
+		for d.NextBlock(0) {
+			switch d.Val() {
 			case "regex":
-				args = c.RemainingArgs()
-				if len(args) != 1 {
-					return nil, c.ArgErr()
+				if !d.Args(&m.regex) {
+					return d.ArgErr()
 				}
-				metrics.regex = args[0]
-			case "use_caddy_addr":
-				if addrSet {
-					return nil, c.Err("prometheus: address and use_caddy_addr options may not be used together")
-				}
-				metrics.useCaddyAddr = true
 			default:
-				return nil, c.Errf("prometheus: unknown item: %s", c.Val())
+				return d.Errf("prometheus: unknown item: %s", d.Val())
 			}
 		}
 	}
-	return metrics, err
+	return nil
+}
+
+// parseCaddyfile unmarshals tokens from h into a new Middleware.
+func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
+	var m Metrics
+	err := m.UnmarshalCaddyfile(h.Dispenser)
+	return m, err
 }
