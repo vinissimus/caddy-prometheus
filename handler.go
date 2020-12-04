@@ -1,4 +1,4 @@
-package metrics
+package prommetrics
 
 import (
 	"net"
@@ -7,80 +7,67 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mholt/caddy/caddyhttp/httpserver"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
-func (m *Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
-	next := m.next
+type observed struct {
+	start  time.Time
+	host   string
+	path   string
+	status string
+	ttfb   float64
+	size   float64
+}
 
-	start := time.Now()
+func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
+	obs := &observed{
+		start: time.Now(),
+	}
+	// Based on https://github.com/caddyserver/caddy/blob/f197cec7f3a599ca18807e7b7719ef7666cfdb70/modules/caddyhttp/metrics.go#L121-L133
+	var stat int
 
-	// Record response to get status code and size of the reply.
-	rw := httpserver.NewResponseRecorder(w)
-	// Get time to first write.
-	tw := &timedResponseWriter{ResponseWriter: rw}
-
-	status, err := next.ServeHTTP(tw, r)
-
-	// If nothing was explicitly written, consider the request written to
-	// now that it has completed.
-	tw.didWrite()
+	// This is a _bit_ of a hack - it depends on the ShouldBufferFunc always
+	// being called when the headers are written.
+	// Effectively the same behaviour as promhttp.InstrumentHandlerTimeToWriteHeader.
+	writeHeaderRecorder := caddyhttp.ShouldBufferFunc(func(status int, header http.Header) bool {
+		stat = status
+		obs.ttfb = time.Since(obs.start).Seconds()
+		return false
+	})
+	wrec := caddyhttp.NewResponseRecorder(w, nil, writeHeaderRecorder)
+	err := next.ServeHTTP(wrec, r)
 
 	// Transparently capture the status code so as to not side effect other plugins
-	stat := status
-	if err != nil && status == 0 {
+	if err != nil && stat == 0 {
 		// Some middlewares set the status to 0, but return an non nil error: map these to status 500
 		stat = 500
-	} else if status == 0 {
-		// 'proxy' returns a status code of 0, but the actual status is available on rw.
-		// Note that if 'proxy' encounters an error, it returns the appropriate status code (such as 502)
-		// from ServeHTTP and is captured above with 'stat := status'.
-		stat = rw.Status()
 	}
 
 	path := "/-"
 	if stat != 404 {
-		path = getPath(m, r.URL.String())
+		path = getPath(&m, r.URL.String())
 	}
-
-	// We only want 2xx, 3xx, 4xx, 5xx
-	statusStr := string(strconv.Itoa(stat)[0]) + "xx"
 
 	host, _, _ := net.SplitHostPort(r.Host)
 	host = strings.ToLower(host)
 
-	requestCount.WithLabelValues(host, path).Inc()
-	requestDuration.WithLabelValues(host, path).Observe(time.Since(start).Seconds())
-	responseSize.WithLabelValues(host, path, statusStr).Observe(float64(rw.Size()))
-	responseStatus.WithLabelValues(host, path, statusStr).Inc()
-	responseLatency.WithLabelValues(host, path, statusStr).Observe(tw.firstWrite.Sub(start).Seconds())
+	obs.host = host
+	obs.path = path
+	// We only want 2xx, 3xx, 4xx, 5xx
+	obs.status = string(sanitizeCode(stat)[0]) + "xx"
+	obs.size = float64(wrec.Size())
 
-	return status, err
+	m.observer(obs)
+
+	return nil
 }
 
-// A timedResponseWriter tracks the time when the first response write
-// happened.
-type timedResponseWriter struct {
-	firstWrite time.Time
-	http.ResponseWriter
-}
-
-func (w *timedResponseWriter) didWrite() {
-	if w.firstWrite.IsZero() {
-		w.firstWrite = time.Now()
-	}
-}
-
-func (w *timedResponseWriter) Write(data []byte) (int, error) {
-	w.didWrite()
-	return w.ResponseWriter.Write(data)
-}
-
-func (w *timedResponseWriter) WriteHeader(statuscode int) {
-	// We consider this a write as it's valid to respond to a request by
-	// just setting a status code and returning.
-	w.didWrite()
-	w.ResponseWriter.WriteHeader(statuscode)
+func observe(o *observed) {
+	requestCount.WithLabelValues(o.host, o.path).Inc()
+	requestDuration.WithLabelValues(o.host, o.path, o.status).Observe(time.Since(o.start).Seconds())
+	responseSize.WithLabelValues(o.host, o.path, o.status).Observe(o.size)
+	responseStatus.WithLabelValues(o.host, o.path, o.status).Inc()
+	responseLatency.WithLabelValues(o.host, o.path, o.status).Observe(o.ttfb)
 }
 
 func getPath(m *Metrics, url string) string {
@@ -92,4 +79,11 @@ func getPath(m *Metrics, url string) string {
 	}
 
 	return "/-"
+}
+
+func sanitizeCode(code int) string {
+	if code == 0 {
+		return "200"
+	}
+	return strconv.Itoa(code)
 }

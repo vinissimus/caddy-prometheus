@@ -1,66 +1,46 @@
-package metrics
+package prommetrics
 
 import (
 	"testing"
 
-	"github.com/mholt/caddy"
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
+	"github.com/caddyserver/caddy/v2/caddyconfig/httpcaddyfile"
 )
 
 func TestParse(t *testing.T) {
 	tests := []struct {
 		input     string
 		shouldErr bool
-		expected  *Metrics
+		expected  Metrics
 	}{
-		{`prometheus`, false, &Metrics{addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
-		{`prometheus foo:123`, false, &Metrics{addr: "foo:123", path: defaultPath, regex: defaultRegex}},
-		{`prometheus foo bar`, true, nil},
+		{`prometheus`, false, Metrics{regex: defaultRegex}},
 		{`prometheus {
 			a b
-		}`, true, nil},
-		{`prometheus
-			prometheus`, true, nil},
-		{`prometheus {
-			address
-		}`, true, nil},
-		{`prometheus {
-			path
-		}`, true, nil},
-		{`prometheus {
-			hostname
-		}`, true, nil},
-		{`prometheus {
-			address 0.0.0.0:1234
-			use_caddy_addr
-		}`, true, nil},
-		{`prometheus {
-			use_caddy_addr
-			address 0.0.0.0:1234
-		}`, true, nil},
-		{`prometheus {
-			use_caddy_addr
-		}`, false, &Metrics{useCaddyAddr: true, addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
-		{`prometheus {
-			path /foo
-		}`, false, &Metrics{addr: defaultAddr, path: "/foo", regex: defaultRegex}},
-		{`prometheus {
-			use_caddy_addr
-			hostname example.com
-		}`, false, &Metrics{useCaddyAddr: true, hostname: "example.com", addr: defaultAddr, path: defaultPath, regex: defaultRegex}},
+		}`, true, Metrics{}},
+		{`prometheus prometheus`, true, Metrics{}},
 		{`prometheus {
 			regex "^https?://([^\/]+).*$"
-		}`, false, &Metrics{addr: defaultAddr, path: defaultPath, regex: `^https?://([^\/]+).*$`}},
+		}`, false, Metrics{regex: `^https?://([^\/]+).*$`}},
 	}
 	for i, test := range tests {
-		c := caddy.NewTestController("http", test.input)
-		m, err := parse(c)
-		if test.shouldErr && err == nil {
-			t.Errorf("Test %v: Expected error but found nil", i)
-		} else if !test.shouldErr && err != nil {
-			t.Errorf("Test %v: Expected no error but found error: %v", i, err)
+		h := httpcaddyfile.Helper{
+			Dispenser: caddyfile.NewTestDispenser(test.input),
 		}
-		if test.expected != m && *test.expected != *m {
-			t.Errorf("Test %v: Created Metrics (\n%#v\n) does not match expected (\n%#v\n)", i, m, test.expected)
+		actual, err := parseCaddyfile(h)
+		got := actual.(Metrics)
+		got.Provision(caddy.Context{})
+
+		if test.shouldErr {
+			if err == nil {
+				t.Errorf("Test %v: Expected error but found nil", i)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("Test %v: Expected no error but found error: %v", i, err)
+			} else if test.expected.regex != got.regex {
+				t.Errorf("Test %v: Created Metrics (\n%#v\n) does not match expected (\n%#v\n)", i, got, test.expected)
+			}
 		}
 	}
 }

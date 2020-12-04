@@ -1,4 +1,4 @@
-package metrics
+package prommetrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
@@ -29,7 +29,7 @@ func define(subsystem string) {
 		Name:      "request_duration_seconds",
 		Help:      "Histogram of the time (in seconds) each request took.",
 		Buckets:   append(prometheus.DefBuckets, 30, 60),
-	}, []string{"host", "path"})
+	}, []string{"host", "path", "status"})
 
 	responseSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
