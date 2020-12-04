@@ -36,12 +36,10 @@ func TestParse(t *testing.T) {
 				t.Errorf("Test %v: Expected error but found nil", i)
 			}
 		} else {
-			if err == nil {
-				if test.expected.regex != got.regex {
-					t.Errorf("Test %v: Created Metrics (\n%#v\n) does not match expected (\n%#v\n)", i, got, test.expected)
-				}
-			} else {
+			if err != nil {
 				t.Errorf("Test %v: Expected no error but found error: %v", i, err)
+			} else if test.expected.regex != got.regex {
+				t.Errorf("Test %v: Created Metrics (\n%#v\n) does not match expected (\n%#v\n)", i, got, test.expected)
 			}
 		}
 	}
