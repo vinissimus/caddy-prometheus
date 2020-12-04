@@ -2,6 +2,7 @@ package prommetrics
 
 import (
 	"regexp"
+	"sync"
 
 	"github.com/caddyserver/caddy/v2"
 	"github.com/caddyserver/caddy/v2/caddyconfig/caddyfile"
@@ -18,6 +19,8 @@ func init() {
 
 const defaultRegex = `^/([^/]*).*$`
 
+var once *sync.Once = &sync.Once{}
+
 // Metrics holds the prometheus configuration.
 type Metrics struct {
 	regex string
@@ -31,12 +34,16 @@ type Metrics struct {
 // CaddyModule returns the Caddy module information.
 func (Metrics) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
-		ID:  "http.handlers.prometheus",
-		New: newModule,
+		ID: "http.handlers.prometheus",
+		New: func() caddy.Module {
+			return &Metrics{
+				observer: observe,
+			}
+		},
 	}
 }
 
-func newModule() caddy.Module {
+func initMetrics() {
 	define("")
 
 	prometheus.MustRegister(requestCount)
@@ -44,14 +51,12 @@ func newModule() caddy.Module {
 	prometheus.MustRegister(responseLatency)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(responseStatus)
-
-	return Metrics{
-		observer: observe,
-	}
 }
 
 // Provision implements caddy.Provisioner.
 func (m *Metrics) Provision(ctx caddy.Context) error {
+	once.Do(initMetrics)
+
 	if len(m.regex) == 0 {
 		m.regex = defaultRegex
 	}

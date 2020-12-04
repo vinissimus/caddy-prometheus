@@ -23,6 +23,7 @@ func TestParse(t *testing.T) {
 			regex "^https?://([^\/]+).*$"
 		}`, false, Metrics{regex: `^https?://([^\/]+).*$`}},
 	}
+
 	for i, test := range tests {
 		h := httpcaddyfile.Helper{
 			Dispenser: caddyfile.NewTestDispenser(test.input),
