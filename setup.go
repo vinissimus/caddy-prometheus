@@ -1,6 +1,7 @@
 package prommetrics
 
 import (
+	"fmt"
 	"regexp"
 	"sync"
 
@@ -35,10 +36,12 @@ func (Metrics) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID: "http.handlers.prometheus",
 		New: func() caddy.Module {
-			return &Metrics{
+			m := &Metrics{
 				observer: observe,
 				init:     &sync.Once{},
 			}
+			fmt.Printf("New() metric pointer %v", m)
+			return m
 		},
 	}
 }
@@ -55,6 +58,7 @@ func initMetrics() {
 
 // Provision implements caddy.Provisioner.
 func (m *Metrics) Provision(ctx caddy.Context) error {
+	fmt.Printf("Provision() metric pointer %v", m)
 	m.init.Do(initMetrics)
 
 	if len(m.regex) == 0 {
