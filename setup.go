@@ -1,7 +1,6 @@
 package prommetrics
 
 import (
-	"fmt"
 	"regexp"
 	"sync"
 
@@ -20,6 +19,8 @@ func init() {
 
 const defaultRegex = `^/([^/]*).*$`
 
+var once *sync.Once = &sync.Once{}
+
 // Metrics holds the prometheus configuration.
 type Metrics struct {
 	regex string
@@ -27,7 +28,6 @@ type Metrics struct {
 	// subsystem?
 	compiledRegex *regexp.Regexp
 
-	init     *sync.Once
 	observer func(*observed)
 }
 
@@ -36,12 +36,9 @@ func (Metrics) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID: "http.handlers.prometheus",
 		New: func() caddy.Module {
-			m := &Metrics{
+			return &Metrics{
 				observer: observe,
-				init:     &sync.Once{},
 			}
-			fmt.Printf("New() metric pointer %v", m)
-			return m
 		},
 	}
 }
@@ -58,8 +55,7 @@ func initMetrics() {
 
 // Provision implements caddy.Provisioner.
 func (m *Metrics) Provision(ctx caddy.Context) error {
-	fmt.Printf("Provision() metric pointer %v", m)
-	m.init.Do(initMetrics)
+	once.Do(initMetrics)
 
 	if len(m.regex) == 0 {
 		m.regex = defaultRegex
