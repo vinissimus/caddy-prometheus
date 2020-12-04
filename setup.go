@@ -35,7 +35,7 @@ func (Metrics) CaddyModule() caddy.ModuleInfo {
 	return caddy.ModuleInfo{
 		ID: "http.handlers.prometheus",
 		New: func() caddy.Module {
-			return Metrics{
+			return &Metrics{
 				observer: observe,
 				init:     &sync.Once{},
 			}
