@@ -1,7 +1,6 @@
 package prommetrics
 
 import (
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -49,10 +48,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 		path = getPath(&m, r.URL.Path)
 	}
 
-	host, _, _ := net.SplitHostPort(r.Host)
-	host = strings.ToLower(host)
-
-	obs.host = host
+	obs.host = strings.ToLower(r.URL.Host)
 	obs.path = path
 	// We only want 2xx, 3xx, 4xx, 5xx
 	obs.status = string(sanitizeCode(stat)[0]) + "xx"
