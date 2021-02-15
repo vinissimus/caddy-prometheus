@@ -46,7 +46,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 
 	path := "/-"
 	if stat != 404 {
-		path = getPath(&m, r.URL.String())
+		path = getPath(&m, r.URL.Path)
 	}
 
 	host, _, _ := net.SplitHostPort(r.Host)
