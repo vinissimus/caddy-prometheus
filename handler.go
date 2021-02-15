@@ -43,7 +43,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 		stat = 500
 	}
 
-	path := "/-"
+	path := "?"
 	if stat != 404 {
 		path = getPath(&m, r.URL.Path)
 	}
@@ -76,7 +76,7 @@ func getPath(m *Metrics, url string) string {
 		return string(submatch[1])
 	}
 
-	return "/-"
+	return "?"
 }
 
 func sanitizeCode(code int) string {
