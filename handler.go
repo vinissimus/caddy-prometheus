@@ -63,7 +63,7 @@ func (m Metrics) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhtt
 
 	m.observer(obs)
 
-	return nil
+	return err
 }
 
 func observe(o *observed) {
